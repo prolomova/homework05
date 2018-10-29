@@ -45,15 +45,10 @@ trait TweetStorage {
 
   def getTweet(id: String): Result[Tweet]
 
-  def increaseLike(tweet: Tweet): Result[Tweet]
+  def updateTweet(tweet: Tweet): Result[Tweet]
 }
 
-sealed trait Result[+T]{
-  val value: Any = this match {
-    case Success(result) => result
-    case Error(errorMsg) => errorMsg
-  }
-}
+sealed trait Result[+T]
 
 final case class Success[T](result: T) extends Result[T]
 
@@ -80,55 +75,53 @@ class TwitterApi(val storage: TweetStorage) {
 
   def likeTweet(request: LikeRequest): Result[Tweet] = storage.getTweet(request.id) match {
     case Error(message) => Error(message)
-    case Success(tweet: Tweet) => storage.increaseLike(tweet)
+    case Success(tweet: Tweet) => {
+          val newTweet = tweet.copy(likes = tweet.likes + 1)
+          storage.updateTweet(newTweet)
+          Success(newTweet)
+      }
   }
 }
 
-class Storage extends TweetStorage {
-  private var tweets: Map[String, Tweet] = Map.empty
 
-  override def addTweet(tweet: Tweet): Result[Tweet] = tweets.get(tweet.id) match {
-    case Some(_) => Error(s"A tweet with this id: ${tweet.id} is already in storage")
-    case None =>
-      tweets = tweets.updated(tweet.id, tweet)
-    Success(tweet)
-  }
+  class Storage extends TweetStorage {
+    private var tweets: Map[String, Tweet] = Map.empty
 
-  override def increaseLike(tweet: Tweet): Result[Tweet] = {
-    tweets.get(tweet.id) match {
-      case None => Error(s"Tweet with id: ${tweet.id} does not exist")
-      case Some(_) =>
-        val newTweet = Tweet(
-          tweet.id,
-          tweet.user,
-          tweet.text,
-          tweet.hashTags,
-          tweet.createdAt,
-          tweet.likes + 1)
-        tweets = tweets.updated(newTweet.id, newTweet)
-        Success(newTweet)
+    override def addTweet(tweet: Tweet): Result[Tweet] = tweets.get(tweet.id) match {
+      case Some(_) => Error(s"A tweet with this id: ${tweet.id} is already in storage")
+      case None =>
+        tweets = tweets.updated(tweet.id, tweet)
+        Success(tweet)
+    }
+
+    override def getTweet(id: String): Result[Tweet] = {
+      tweets.get(id) match {
+        case Some(tweet) => Success(tweet)
+        case None => Error(s"Id: $id was not found")
+      }
+    }
+
+    override def updateTweet(tweet: Tweet): Result[Tweet] = {
+      tweets.get(tweet.id) match {
+        case Some(_) =>
+          tweets = tweets.updated(tweet.id, tweet)
+          Success(tweet)
+        case None => Error(s"A tweet with this id: ${tweet.id} is not in storage")
+      }
     }
   }
 
-  override def getTweet(id: String): Result[Tweet] = {
-    tweets.get(id) match {
-      case Some(tweet) => Success(tweet)
-      case None => Error(s"Id: $id was not found")
+  object TweetApiExample extends App {
+
+    val storage: TweetStorage = new Storage()
+    val app = new TwitterApi(storage)
+
+    val request = CreateTweetRequest(user = "me", text = "Hello, world!")
+
+    val response = app.createTweet(request)
+    response match {
+      case Success(value) => println(s"Created tweet with id: ${value.id}")
+      case Error(message) => println(s"Failed to create tweet: $message")
     }
+
   }
-}
-
-object TweetApiExample extends App {
-
-  val storage: TweetStorage = new Storage()
-  val app = new TwitterApi(storage)
-
-  val request = CreateTweetRequest(user = "me", text = "Hello, world!")
-
-  val response = app.createTweet(request)
-  response match {
-    case Success(value) => println(s"Created tweet with id: ${value.id}")
-    case Error(message) => println(s"Failed to create tweet: $message")
-  }
-
-}
