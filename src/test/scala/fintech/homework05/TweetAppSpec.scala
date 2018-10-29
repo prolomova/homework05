@@ -5,10 +5,11 @@ import org.scalatest.{FlatSpec, Matchers}
 class TweetAppSpec extends FlatSpec with Matchers {
   val storage = new Storage()
   val app = new TwitterApi(storage)
-  val tweet: Tweet = app
-    .createTweet(CreateTweetRequest("I love Nutella #Nutella #NutellaLover", "NutellaLover"))
-    .asInstanceOf[Success[Tweet]]
-    .result
+  val result = app.createTweet(CreateTweetRequest("I love Nutella #Nutella #NutellaLover", "NutellaLover")) match {
+    case Error(errorMsg) => Error(errorMsg)
+    case Success(res) => res
+  }
+  val tweet: Tweet = result.asInstanceOf[Tweet]
 
   "Created Tweet" should "be equal to the same Tweet" in {
     tweet should be(Tweet(
@@ -21,8 +22,11 @@ class TweetAppSpec extends FlatSpec with Matchers {
   }
 
   "Created Tweet" should "be equal to Tweet from storage" in {
-    val receivedTweet = GetTweetRequest(tweet.id)
-    app.getTweet(receivedTweet).asInstanceOf[Success[Tweet]].result should be(tweet)
+    val receivedTweet = app.getTweet(GetTweetRequest(tweet.id)) match {
+      case Error(errorMsg) => Error(errorMsg)
+      case Success(res) => res
+    }
+    result.asInstanceOf[Tweet] should be(tweet)
   }
 
   "Created Tweet" should "return correct Error if tweet's length is incorrect" in {
@@ -37,7 +41,11 @@ class TweetAppSpec extends FlatSpec with Matchers {
   "Created Tweet" should "correctly increase the number of likes" in {
     for (_ <- 0 until 5)
       app.likeTweet(LikeRequest(tweet.id))
-    storage.getTweet(tweet.id).asInstanceOf[Success[Tweet]].result.likes should be(5)
+    val result = storage.getTweet(tweet.id) match {
+      case Error(errorMsg) => Error(errorMsg)
+      case Success(res) => res
+    }
+    result.asInstanceOf[Tweet].likes should be(5)
   }
 
   "Created Tweet" should "return correct Error if tweet's id was not found" in {

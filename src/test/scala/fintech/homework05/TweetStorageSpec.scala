@@ -20,8 +20,11 @@ class TweetStorageSpec extends FlatSpec with Matchers {
   "Storage" should "return tweet from Storage correctly" in {
     val storage = new Storage()
     storage.addTweet(tweet)
-    val returnedTweet = storage.getTweet("0")
-    returnedTweet.asInstanceOf[Success[Tweet]].result should be(tweet)
+    val returnedTweet = storage.getTweet("0") match {
+      case Error(errorMsg) => Error(errorMsg)
+      case Success(res) => res
+    }
+    returnedTweet should be(tweet)
   }
 
   "Storage" should "return correct Error if Tweet with id was not found" in {
@@ -37,7 +40,10 @@ class TweetStorageSpec extends FlatSpec with Matchers {
   }
 
   "Storage" should "update tweet correctly" in {
-    val newTweet = storage.updateTweet(tweet.copy(likes = 1)).asInstanceOf[Success[Tweet]].result
-    storage.getTweet(newTweet.id).asInstanceOf[Success[Tweet]].result should be(newTweet)
+    val newTweet = storage.updateTweet(tweet.copy(likes = 1)) match {
+      case Error(errorMsg) => Error(errorMsg)
+      case Success(res) => res
+    }
+    storage.getTweet(newTweet.asInstanceOf[Tweet].id).asInstanceOf[Success[Tweet]].result should be(newTweet)
   }
 }
